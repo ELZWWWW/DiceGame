@@ -1,0 +1,159 @@
+<!-- --- index.html --- -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Diceforge</title>
+<style>
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #f5f1e8;
+    color: #4a3f35;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+  }
+  h1 { margin-top: 20px; }
+  .dice { font-size: 4em; margin: 20px; cursor: pointer; user-select: none; transition: transform 0.1s; }
+  .dice:hover { transform: scale(1.1); }
+  .resources { margin-top: 20px; }
+  .upgrade { background: #fff9f0; margin: 10px auto; width: 250px; padding: 10px; border-radius: 10px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  .upgrade:hover { background: #fff3e0; }
+  .shop { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); padding: 40px; overflow-y: auto; }
+  .shop-card { background: #fff; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin: 20px auto; width: 280px; padding: 20px; transition: transform 0.2s; }
+  .shop-card:hover { transform: scale(1.05); }
+  .stats, .achievements { display: none; background: #fff8f0; border-radius: 12px; margin: 20px auto; padding: 20px; width: 350px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  .achievement-popup { position: fixed; top: 20px; right: 20px; background: #fff; color: #4a3f35; border-radius: 10px; padding: 10px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: translateY(-20px); }
+  .achievement-popup.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+  <h1>🎲 Diceforge</h1>
+  <div class="resources">
+    <p>Money: $<span id="money">0</span></p>
+    <p>Dark Matter: <span id="darkMatter">0</span></p>
+    <p>Prestige Level: <span id="prestigeLevel">0</span></p>
+  </div>
+  <div class="dice" id="dice">⚅</div>
+
+  <div class="upgrade" id="openShop">🛒 Open Shop</div>
+  <div class="upgrade" id="toggleStats">📊 Stats</div>
+  <div class="upgrade" id="toggleAchievements">🏆 Achievements</div>
+  <div class="upgrade" id="saveGame">💾 Save</div>
+  <div class="upgrade" id="loadGame">📂 Load</div>
+
+  <div class="shop" id="shopMenu">
+    <h2>🛍️ Upgrade Shop</h2>
+    <div class="shop-card" id="buyDice">🎲 Buy New Dice ($100)</div>
+    <div class="shop-card" id="autoRoll">🤖 Auto Roller ($500)</div>
+    <div class="shop-card" id="buySkill">🧠 Upgrade Skill Tree ($1000)</div>
+    <div class="shop-card" id="prestige">🌌 Prestige ($10,000)</div>
+    <div class="shop-card" id="closeShop">❌ Close</div>
+  </div>
+
+  <div class="stats" id="statsPanel">
+    <h2>📈 Stats</h2>
+    <p>Total Rolls: <span id="statRolls">0</span></p>
+    <p>Total Money: $<span id="statMoney">0</span></p>
+    <p>Total Prestiges: <span id="statPrestiges">0</span></p>
+    <p>Best Roll: <span id="statBestRoll">0</span></p>
+  </div>
+
+  <div class="achievements" id="achievementsPanel">
+    <h2>🏆 Achievements</h2>
+    <ul id="achievementsList"></ul>
+  </div>
+
+  <div class="achievement-popup" id="achievementPopup"></div>
+
+  <script>
+    let money = 0, darkMatter = 0, diceCount = 1, autoRollers = 0, skillLevel = 0, prestigeLevel = 0, prestigeMultiplier = 1;
+    let totalRolls = 0, totalMoney = 0, bestRoll = 0;
+    const unlockedAchievements = new Set();
+
+    const achPopup = document.getElementById('achievementPopup');
+    const statsPanel = document.getElementById('statsPanel');
+    const shopMenu = document.getElementById('shopMenu');
+    const achievementsPanel = document.getElementById('achievementsPanel');
+    const achievementsList = document.getElementById('achievementsList');
+
+    function updateDisplay() {
+      document.getElementById('money').textContent = Math.floor(money);
+      document.getElementById('darkMatter').textContent = Math.floor(darkMatter);
+      document.getElementById('prestigeLevel').textContent = prestigeLevel;
+      document.getElementById('statRolls').textContent = totalRolls;
+      document.getElementById('statMoney').textContent = Math.floor(totalMoney);
+      document.getElementById('statPrestiges').textContent = prestigeLevel;
+      document.getElementById('statBestRoll').textContent = bestRoll;
+    }
+
+    function saveGame() {
+      localStorage.setItem('diceforgeSave', JSON.stringify({ money, darkMatter, diceCount, autoRollers, skillLevel, prestigeLevel, prestigeMultiplier, totalRolls, totalMoney, bestRoll, unlocked: Array.from(unlockedAchievements) }));
+      alert('Game Saved!');
+    }
+
+    function loadGame() {
+      const data = JSON.parse(localStorage.getItem('diceforgeSave'));
+      if (!data) return alert('No save found!');
+      Object.assign(window, data);
+      data.unlocked?.forEach(a => unlockedAchievements.add(a));
+      updateAchievementsList();
+      updateDisplay();
+      alert('Game Loaded!');
+    }
+
+    function unlockAchievement(name) {
+      if (unlockedAchievements.has(name)) return;
+      unlockedAchievements.add(name);
+      achPopup.textContent = `🏆 Achievement Unlocked: ${name}`;
+      achPopup.classList.add('show');
+      setTimeout(() => achPopup.classList.remove('show'), 3000);
+      updateAchievementsList();
+    }
+
+    function updateAchievementsList() {
+      achievementsList.innerHTML = '';
+      unlockedAchievements.forEach(a => {
+        const li = document.createElement('li');
+        li.textContent = a;
+        achievementsList.appendChild(li);
+      });
+    }
+
+    function checkAchievements() {
+      if (totalRolls >= 100) unlockAchievement('Roller Novice');
+      if (totalRolls >= 1000) unlockAchievement('Dice Master');
+      if (money >= 100000) unlockAchievement('Millionaire Roller');
+      if (prestigeLevel >= 1) unlockAchievement('Ascended Once');
+      if (skillLevel >= 5) unlockAchievement('Skill Sage');
+    }
+
+    document.getElementById('dice').addEventListener('click', () => {
+      const roll = Math.floor(Math.random() * 6) + 1;
+      bestRoll = Math.max(bestRoll, roll);
+      totalRolls++;
+      const gain = roll * diceCount * prestigeMultiplier;
+      money += gain;
+      totalMoney += gain;
+      darkMatter += roll / 10;
+      updateDisplay();
+      checkAchievements();
+    });
+
+    document.getElementById('buyDice').onclick = () => { if (money >= 100) { money -= 100; diceCount++; updateDisplay(); } };
+    document.getElementById('autoRoll').onclick = () => { if (money >= 500) { money -= 500; autoRollers++; setInterval(() => { document.getElementById('dice').click(); }, 1000); updateDisplay(); } };
+    document.getElementById('buySkill').onclick = () => { if (money >= 1000) { money -= 1000; skillLevel++; prestigeMultiplier += 0.05; updateDisplay(); } };
+    document.getElementById('prestige').onclick = () => { if (money >= 10000) { prestigeLevel++; prestigeMultiplier += 0.5; money = darkMatter = 0; diceCount = 1; autoRollers = skillLevel = 0; updateDisplay(); unlockAchievement('Ascended Once'); } };
+
+    document.getElementById('saveGame').onclick = saveGame;
+    document.getElementById('loadGame').onclick = loadGame;
+    document.getElementById('openShop').onclick = () => shopMenu.style.display = 'block';
+    document.getElementById('closeShop').onclick = () => shopMenu.style.display = 'none';
+    document.getElementById('toggleStats').onclick = () => statsPanel.style.display = statsPanel.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('toggleAchievements').onclick = () => achievementsPanel.style.display = achievementsPanel.style.display === 'none' ? 'block' : 'none';
+
+    updateDisplay();
+  </script>
+</body>
+</html>
